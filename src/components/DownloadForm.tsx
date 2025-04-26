@@ -27,11 +27,19 @@ const DownloadForm = ({ platform, platformColor }: DownloadFormProps) => {
     
     // Basic URL validation
     try {
-      const urlObj = new URL(url);
+      // For YouTube specifically, we may need to handle URLs that don't have proper protocol
+      let processedUrl = url.trim();
+      if (!processedUrl.startsWith('http://') && !processedUrl.startsWith('https://')) {
+        processedUrl = 'https://' + processedUrl;
+      }
+      
+      console.log("Processing URL:", processedUrl);
+      
+      const urlObj = new URL(processedUrl);
       
       // Check if the URL belongs to the correct platform
       const domainCheck = {
-        'YouTube': ['youtube.com', 'youtu.be', 'youtube', 'www.youtube.com'],
+        'YouTube': ['youtube.com', 'youtu.be', 'youtube', 'www.youtube.com', 'm.youtube.com'],
         'Instagram': ['instagram.com', 'www.instagram.com', 'instagr.am'],
         'Facebook': ['facebook.com', 'fb.com', 'fb.watch', 'www.facebook.com'],
         'Twitter': ['twitter.com', 'x.com', 'www.twitter.com'],
@@ -46,7 +54,19 @@ const DownloadForm = ({ platform, platformColor }: DownloadFormProps) => {
         return;
       }
       
+      // For YouTube, pre-extract the ID for validation before proceeding
+      if (platform === 'YouTube') {
+        const videoId = extractVideoId(processedUrl, platform);
+        console.log("Pre-validation extracted videoId:", videoId);
+        
+        if (!videoId) {
+          toast.error("Could not identify a valid YouTube video ID in this URL.");
+          return;
+        }
+      }
+      
     } catch (error) {
+      console.error("URL validation error:", error);
       toast.error('Please enter a valid URL');
       return;
     }
@@ -72,8 +92,14 @@ const DownloadForm = ({ platform, platformColor }: DownloadFormProps) => {
         // This is a client-side only approach for demonstration
         // In a real app, you would use a backend service to process the video
         
+        // Process URL for consistency
+        let processedUrl = url.trim();
+        if (!processedUrl.startsWith('http://') && !processedUrl.startsWith('https://')) {
+          processedUrl = 'https://' + processedUrl;
+        }
+        
         // Get video ID from URL (improved extraction)
-        const videoId = extractVideoId(url, platform);
+        const videoId = extractVideoId(processedUrl, platform);
         
         if (!videoId) {
           throw new Error('Could not extract video ID from URL');
@@ -87,7 +113,7 @@ const DownloadForm = ({ platform, platformColor }: DownloadFormProps) => {
         
         // In a real implementation, this would be the processed video URL from your backend
         // For now, we'll just use the original URL for demonstration
-        a.href = url;
+        a.href = processedUrl;
         a.download = `${platform.toLowerCase()}-video-${videoId}.mp4`;
         document.body.appendChild(a);
         
@@ -117,64 +143,104 @@ const DownloadForm = ({ platform, platformColor }: DownloadFormProps) => {
     }
   };
   
-  // Extract video ID from different platform URLs - with enhanced YouTube support
+  // Improved YouTube video ID extraction with comprehensive format support
   const extractVideoId = (url: string, platform: string): string | null => {
     try {
-      const urlObj = new URL(url);
-      
-      switch(platform) {
-        case 'YouTube':
+      if (platform === 'YouTube') {
+        // Handle YouTube URLs without protocol
+        let processedUrl = url.trim();
+        if (!processedUrl.startsWith('http://') && !processedUrl.startsWith('https://')) {
+          processedUrl = 'https://' + processedUrl;
+        }
+        
+        console.log("Extracting from URL:", processedUrl);
+        
+        // Pattern for YouTube video ID extraction - comprehensive regex approach
+        const youtubeRegex = /(?:youtube\.com\/(?:[^/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?/\s]{11})/i;
+        const match = processedUrl.match(youtubeRegex);
+        
+        if (match && match[1]) {
+          console.log("Matched YouTube ID via regex:", match[1]);
+          return match[1];
+        }
+        
+        // If regex doesn't work, try URL parsing
+        try {
+          const urlObj = new URL(processedUrl);
+          
           // Handle youtube.com/watch?v=VIDEO_ID
           if (urlObj.pathname.includes('/watch')) {
-            return urlObj.searchParams.get('v');
+            const videoId = urlObj.searchParams.get('v');
+            console.log("Extracted via /watch path:", videoId);
+            return videoId;
           }
           // Handle youtu.be/VIDEO_ID
-          else if (urlObj.hostname === 'youtu.be') {
-            return urlObj.pathname.slice(1);
+          else if (urlObj.hostname.includes('youtu.be')) {
+            const videoId = urlObj.pathname.slice(1);
+            console.log("Extracted via youtu.be path:", videoId);
+            return videoId;
           }
           // Handle youtube.com/shorts/VIDEO_ID
           else if (urlObj.pathname.includes('/shorts/')) {
-            return urlObj.pathname.split('/shorts/')[1]?.split('/')[0] || null;
+            const videoId = urlObj.pathname.split('/shorts/')[1]?.split('/')[0] || null;
+            console.log("Extracted via /shorts path:", videoId);
+            return videoId;
           }
           // Handle youtube.com/embed/VIDEO_ID
           else if (urlObj.pathname.includes('/embed/')) {
-            return urlObj.pathname.split('/embed/')[1]?.split('/')[0] || null;
+            const videoId = urlObj.pathname.split('/embed/')[1]?.split('/')[0] || null;
+            console.log("Extracted via /embed path:", videoId);
+            return videoId;
           }
           // Handle youtube.com/v/VIDEO_ID
           else if (urlObj.pathname.includes('/v/')) {
-            return urlObj.pathname.split('/v/')[1]?.split('/')[0] || null;
+            const videoId = urlObj.pathname.split('/v/')[1]?.split('/')[0] || null;
+            console.log("Extracted via /v path:", videoId);
+            return videoId;
           }
-          break;
+          
+          console.log("No YouTube ID extracted via URL parsing");
+        } catch (e) {
+          console.error("URL parsing error:", e);
+        }
         
-        case 'Instagram':
-          // Handle instagram.com/p/CODE/ or instagram.com/reel/CODE/
-          const matches = urlObj.pathname.match(/\/(p|reel|tv)\/([^\/]+)/);
-          return matches ? matches[2] : null;
+        console.log("No YouTube ID could be extracted");
+        return null;
+      } else {
+        // For other platforms, use the existing extraction logic
+        const urlObj = new URL(url);
         
-        case 'Facebook':
-          // Simple extraction for Facebook videos
-          const fbVideoId = urlObj.pathname.split('/').pop();
-          return fbVideoId || null;
+        switch(platform) {
+          case 'Instagram':
+            // Handle instagram.com/p/CODE/ or instagram.com/reel/CODE/
+            const matches = urlObj.pathname.match(/\/(p|reel|tv)\/([^\/]+)/);
+            return matches ? matches[2] : null;
           
-        case 'Twitter':
-          // Handle twitter.com/user/status/ID
-          if (urlObj.pathname.includes('/status/')) {
-            return urlObj.pathname.split('/status/')[1]?.split('/')[0] || null;
-          }
-          break;
-          
-        case 'Pinterest':
-          // Handle pinterest.com/pin/ID/
-          if (urlObj.pathname.includes('/pin/')) {
-            return urlObj.pathname.split('/pin/')[1]?.split('/')[0] || null;
-          }
-          break;
-          
-        default:
-          return null;
+          case 'Facebook':
+            // Simple extraction for Facebook videos
+            const fbVideoId = urlObj.pathname.split('/').pop();
+            return fbVideoId || null;
+            
+          case 'Twitter':
+            // Handle twitter.com/user/status/ID
+            if (urlObj.pathname.includes('/status/')) {
+              return urlObj.pathname.split('/status/')[1]?.split('/')[0] || null;
+            }
+            break;
+            
+          case 'Pinterest':
+            // Handle pinterest.com/pin/ID/
+            if (urlObj.pathname.includes('/pin/')) {
+              return urlObj.pathname.split('/pin/')[1]?.split('/')[0] || null;
+            }
+            break;
+            
+          default:
+            return null;
+        }
+        
+        return null;
       }
-      
-      return null;
     } catch (e) {
       console.error("Error extracting video ID:", e);
       return null;
