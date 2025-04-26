@@ -3,7 +3,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Facebook, Instagram, Twitter, Youtube, Pinterest, Download, ArrowRight } from 'lucide-react';
+import { Facebook, Instagram, Twitter, Youtube, BookMarked, Download, ArrowRight } from 'lucide-react';
 
 const platforms = [
   {
@@ -37,7 +37,7 @@ const platforms = [
   {
     name: 'Pinterest',
     path: '/pinterest',
-    Icon: Pinterest,
+    Icon: BookMarked,
     color: '#BD081C',
     description: 'Download pin videos and idea pins in high quality'
   }

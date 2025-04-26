@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Button } from './ui/button';
-import { Facebook, Instagram, Twitter, Youtube, Pinterest, Menu, X } from 'lucide-react';
+import { Facebook, Instagram, Twitter, Youtube, BookMarked, Menu, X } from 'lucide-react';
 
 const Navbar = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -36,7 +36,7 @@ const Navbar = () => {
     {
       name: 'Pinterest',
       path: '/pinterest',
-      Icon: Pinterest,
+      Icon: BookMarked,
       color: '#BD081C'
     }
   ];
