@@ -24,7 +24,25 @@ const DownloadForm = ({ platform, platformColor }: DownloadFormProps) => {
     
     // Basic URL validation
     try {
-      new URL(url);
+      const urlObj = new URL(url);
+      
+      // Check if the URL belongs to the correct platform
+      const domainCheck = {
+        'YouTube': ['youtube.com', 'youtu.be'],
+        'Instagram': ['instagram.com'],
+        'Facebook': ['facebook.com', 'fb.com', 'fb.watch'],
+        'Twitter': ['twitter.com', 'x.com'],
+        'Pinterest': ['pinterest.com', 'pin.it']
+      };
+      
+      const platformDomains = domainCheck[platform as keyof typeof domainCheck] || [];
+      const isCorrectPlatform = platformDomains.some(domain => urlObj.hostname.includes(domain));
+      
+      if (!isCorrectPlatform) {
+        toast.error(`This doesn't look like a ${platform} URL. Please enter a valid ${platform} URL`);
+        return;
+      }
+      
     } catch (error) {
       toast.error('Please enter a valid URL');
       return;
