@@ -31,11 +31,11 @@ const DownloadForm = ({ platform, platformColor }: DownloadFormProps) => {
       
       // Check if the URL belongs to the correct platform
       const domainCheck = {
-        'YouTube': ['youtube.com', 'youtu.be'],
-        'Instagram': ['instagram.com'],
-        'Facebook': ['facebook.com', 'fb.com', 'fb.watch'],
-        'Twitter': ['twitter.com', 'x.com'],
-        'Pinterest': ['pinterest.com', 'pin.it']
+        'YouTube': ['youtube.com', 'youtu.be', 'youtube', 'www.youtube.com'],
+        'Instagram': ['instagram.com', 'www.instagram.com', 'instagr.am'],
+        'Facebook': ['facebook.com', 'fb.com', 'fb.watch', 'www.facebook.com'],
+        'Twitter': ['twitter.com', 'x.com', 'www.twitter.com'],
+        'Pinterest': ['pinterest.com', 'pin.it', 'www.pinterest.com']
       };
       
       const platformDomains = domainCheck[platform as keyof typeof domainCheck] || [];
@@ -72,12 +72,14 @@ const DownloadForm = ({ platform, platformColor }: DownloadFormProps) => {
         // This is a client-side only approach for demonstration
         // In a real app, you would use a backend service to process the video
         
-        // Get video ID from URL (simple extraction for demonstration)
+        // Get video ID from URL (improved extraction)
         const videoId = extractVideoId(url, platform);
         
         if (!videoId) {
           throw new Error('Could not extract video ID from URL');
         }
+        
+        console.log(`Successfully extracted video ID: ${videoId} from platform: ${platform}`);
         
         // For demonstration, we're creating a download from the original URL
         // In a real app, you would process this through a backend
@@ -104,6 +106,7 @@ const DownloadForm = ({ platform, platformColor }: DownloadFormProps) => {
       toast.success(`Download started for your ${platform} video!`);
       setUrl('');
     } catch (error) {
+      console.error("Download error:", error);
       toast.error(`Failed to download: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       clearInterval(progressInterval);
@@ -114,25 +117,37 @@ const DownloadForm = ({ platform, platformColor }: DownloadFormProps) => {
     }
   };
   
-  // Extract video ID from different platform URLs
+  // Extract video ID from different platform URLs - with enhanced YouTube support
   const extractVideoId = (url: string, platform: string): string | null => {
     try {
       const urlObj = new URL(url);
       
       switch(platform) {
         case 'YouTube':
-          // Extract from youtube.com/watch?v=VIDEO_ID
+          // Handle youtube.com/watch?v=VIDEO_ID
           if (urlObj.pathname.includes('/watch')) {
             return urlObj.searchParams.get('v');
           }
-          // Extract from youtu.be/VIDEO_ID
+          // Handle youtu.be/VIDEO_ID
           else if (urlObj.hostname === 'youtu.be') {
             return urlObj.pathname.slice(1);
+          }
+          // Handle youtube.com/shorts/VIDEO_ID
+          else if (urlObj.pathname.includes('/shorts/')) {
+            return urlObj.pathname.split('/shorts/')[1]?.split('/')[0] || null;
+          }
+          // Handle youtube.com/embed/VIDEO_ID
+          else if (urlObj.pathname.includes('/embed/')) {
+            return urlObj.pathname.split('/embed/')[1]?.split('/')[0] || null;
+          }
+          // Handle youtube.com/v/VIDEO_ID
+          else if (urlObj.pathname.includes('/v/')) {
+            return urlObj.pathname.split('/v/')[1]?.split('/')[0] || null;
           }
           break;
         
         case 'Instagram':
-          // Extract from instagram.com/p/CODE/ or instagram.com/reel/CODE/
+          // Handle instagram.com/p/CODE/ or instagram.com/reel/CODE/
           const matches = urlObj.pathname.match(/\/(p|reel|tv)\/([^\/]+)/);
           return matches ? matches[2] : null;
         
@@ -142,16 +157,16 @@ const DownloadForm = ({ platform, platformColor }: DownloadFormProps) => {
           return fbVideoId || null;
           
         case 'Twitter':
-          // Extract from twitter.com/user/status/ID
+          // Handle twitter.com/user/status/ID
           if (urlObj.pathname.includes('/status/')) {
-            return urlObj.pathname.split('/status/')[1];
+            return urlObj.pathname.split('/status/')[1]?.split('/')[0] || null;
           }
           break;
           
         case 'Pinterest':
-          // Extract from pinterest.com/pin/ID/
+          // Handle pinterest.com/pin/ID/
           if (urlObj.pathname.includes('/pin/')) {
-            return urlObj.pathname.split('/pin/')[1];
+            return urlObj.pathname.split('/pin/')[1]?.split('/')[0] || null;
           }
           break;
           
@@ -161,6 +176,7 @@ const DownloadForm = ({ platform, platformColor }: DownloadFormProps) => {
       
       return null;
     } catch (e) {
+      console.error("Error extracting video ID:", e);
       return null;
     }
   };
