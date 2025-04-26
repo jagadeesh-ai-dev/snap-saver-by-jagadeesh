@@ -1,3 +1,4 @@
+
 import type { Config } from "tailwindcss";
 
 export default {
@@ -61,7 +62,26 @@ export default {
 					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
-				}
+				},
+				// Custom colors for SnapSaver
+				snapsaver: {
+					purple: {
+						DEFAULT: '#9b87f5',
+						dark: '#7E69AB',
+					},
+					blue: {
+						DEFAULT: '#0FA0CE',
+						light: '#33C3F0',
+					},
+					gray: {
+						light: '#F1F1F1',
+						DEFAULT: '#8E9196',
+						dark: '#1A1F2C',
+					},
+					red: '#ea384c',
+					orange: '#F97316',
+					pink: '#FFDEE2',
+				},
 			},
 			borderRadius: {
 				lg: 'var(--radius)',
@@ -84,11 +104,31 @@ export default {
 					to: {
 						height: '0'
 					}
-				}
+				},
+				'pulse': {
+          '0%, 100%': {
+            opacity: '1'
+          },
+          '50%': {
+            opacity: '0.5'
+          }
+        },
+        'bounce': {
+          '0%, 100%': {
+            transform: 'translateY(-5%)',
+            animationTimingFunction: 'cubic-bezier(0.8, 0, 1, 1)'
+          },
+          '50%': {
+            transform: 'translateY(0)',
+            animationTimingFunction: 'cubic-bezier(0, 0, 0.2, 1)'
+          }
+        }
 			},
 			animation: {
 				'accordion-down': 'accordion-down 0.2s ease-out',
-				'accordion-up': 'accordion-up 0.2s ease-out'
+				'accordion-up': 'accordion-up 0.2s ease-out',
+        'pulse': 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+        'bounce': 'bounce 1s infinite'
 			}
 		}
 	},
