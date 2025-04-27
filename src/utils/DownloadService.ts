@@ -8,6 +8,10 @@ export interface VideoData {
   videoId: string;
   thumbnail?: string;
   message?: string;
+  fileSize?: string;
+  duration?: string;
+  quality?: string;
+  author?: string;
 }
 
 export class DownloadService {
@@ -36,23 +40,36 @@ export class DownloadService {
   
   /**
    * Triggers a file download in the browser
-   * @param url The direct download URL
-   * @param filename The filename to save as
+   * @param videoData The video data with download information
    */
-  static triggerDownload(url: string, filename: string): void {
+  static triggerDownload(videoData: VideoData): void {
     try {
+      const { downloadUrl, title, platform } = videoData;
+      
+      // Create a safe filename based on platform and video title
+      const safeTitle = this.getSafeFilename(title || `${platform.toLowerCase()}-video`);
+      const timestamp = new Date().toISOString().slice(0, 10);
+      const filename = `${platform}-${safeTitle}-${timestamp}`;
+      
       const a = document.createElement('a');
-      a.href = url;
+      a.href = downloadUrl;
       a.download = `${filename}.mp4`;
+      
+      // For certain platforms, if direct download won't work, try opening in new tab
+      const platformsThatMayRequireNewTab = ['YouTube', 'Facebook'];
+      if (platformsThatMayRequireNewTab.includes(platform)) {
+        a.setAttribute('target', '_blank');
+      }
+      
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       
-      console.log(`Download triggered for URL: ${url}`);
+      console.log(`Download triggered for URL: ${downloadUrl}, filename: ${filename}.mp4`);
     } catch (error) {
       console.error("Error triggering download:", error);
       // Fallback to opening in a new tab if download fails
-      window.open(url, "_blank");
+      window.open(videoData.downloadUrl, "_blank");
     }
   }
   
@@ -87,5 +104,33 @@ export class DownloadService {
       console.error("URL validation error:", error);
       return false;
     }
+  }
+
+  /**
+   * Creates a safe filename from a string by removing special characters
+   * @param input The original filename or title
+   * @returns A safe filename string
+   */
+  static getSafeFilename(input: string): string {
+    // Remove special characters that aren't allowed in filenames
+    let safe = input.replace(/[\\/:*?"<>|]/g, '-');
+    // Trim to reasonable length
+    safe = safe.substring(0, 50);
+    // Replace multiple spaces/dashes with single dash
+    safe = safe.replace(/\s+/g, '-').replace(/-+/g, '-');
+    return safe;
+  }
+
+  /**
+   * Gets a human-readable file size string
+   * @param bytes Size in bytes
+   * @returns Formatted file size string
+   */
+  static formatFileSize(bytes?: number): string {
+    if (!bytes || bytes === 0) return 'Unknown size';
+    
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+    return `${(bytes / Math.pow(1024, i)).toFixed(2)} ${sizes[i]}`;
   }
 }
