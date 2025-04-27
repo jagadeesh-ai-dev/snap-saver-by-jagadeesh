@@ -22,6 +22,8 @@ export class DownloadService {
    * @returns VideoData containing download information
    */
   static async getDownloadUrl(url: string, platform: string): Promise<VideoData> {
+    console.log(`Requesting download URL for: ${url} from platform: ${platform}`);
+    
     const { data, error } = await supabase.functions.invoke('video-downloader', {
       body: { url, platform },
     });
@@ -35,6 +37,7 @@ export class DownloadService {
       throw new Error('No download URL returned from the server');
     }
     
+    console.log("Received video data:", data);
     return data as VideoData;
   }
   

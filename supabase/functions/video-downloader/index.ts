@@ -174,17 +174,44 @@ async function processTwitterVideo(url: string) {
 }
 
 async function processPinterestVideo(url: string) {
-  // Mock Pinterest video processing
-  const pinId = Math.floor(Math.random() * 1000000000).toString();
+  // Extract Pinterest pin ID from URL
+  let pinId = "";
+  try {
+    // Handle different Pinterest URL formats
+    if (url.includes('pin.it')) {
+      // Short URL format: https://pin.it/abc123
+      const urlObj = new URL(url);
+      pinId = urlObj.pathname.substring(1); // Remove leading slash
+    } else if (url.includes('pinterest.com/pin/')) {
+      // Regular URL format: https://www.pinterest.com/pin/123456789/
+      const urlObj = new URL(url);
+      const pathParts = urlObj.pathname.split('/').filter(Boolean);
+      if (pathParts.length >= 2 && pathParts[0] === 'pin') {
+        pinId = pathParts[1];
+      }
+    }
+  } catch (error) {
+    console.error('Error extracting Pinterest pin ID:', error);
+    throw new Error('Invalid Pinterest URL');
+  }
   
+  if (!pinId) {
+    throw new Error('Could not extract Pinterest pin ID');
+  }
+  
+  console.log(`Extracted Pinterest pin ID: ${pinId}`);
+  
+  // In a production environment, you would fetch the actual video URL
+  // For this demo, we'll use a different sample video for Pinterest to distinguish it
   return {
     title: `Pinterest Pin ${pinId}`,
-    downloadUrl: `https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4`,
+    downloadUrl: `https://storage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4`,
     platform: 'Pinterest',
     videoId: pinId,
     message: 'Pinterest video saved to your device!',
-    fileSize: '9.7 MB',
-    duration: '1:45',
-    author: 'Pinterest Creator'
+    fileSize: '14.2 MB',
+    duration: '2:22',
+    author: 'Pinterest Creator',
+    quality: '720p'
   };
 }
