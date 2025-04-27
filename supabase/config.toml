@@ -1,1 +1,5 @@
+
 project_id = "savkmyzevuehbqqrfefw"
+
+[functions.video-downloader]
+verify_jwt = false

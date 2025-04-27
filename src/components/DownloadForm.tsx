@@ -2,9 +2,10 @@
 import React, { useState } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
-import { Download } from 'lucide-react';
+import { Download, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { Progress } from './ui/progress';
+import { supabase } from "@/integrations/supabase/client";
 
 interface DownloadFormProps {
   platform: string;
@@ -53,18 +54,6 @@ const DownloadForm = ({ platform, platformColor }: DownloadFormProps) => {
         toast.error(`This doesn't look like a ${platform} URL. Please enter a valid ${platform} URL`);
         return;
       }
-      
-      // For YouTube, pre-extract the ID for validation before proceeding
-      if (platform === 'YouTube') {
-        const videoId = extractVideoId(processedUrl, platform);
-        console.log("Pre-validation extracted videoId:", videoId);
-        
-        if (!videoId) {
-          toast.error("Could not identify a valid YouTube video ID in this URL.");
-          return;
-        }
-      }
-      
     } catch (error) {
       console.error("URL validation error:", error);
       toast.error('Please enter a valid URL');
@@ -75,61 +64,38 @@ const DownloadForm = ({ platform, platformColor }: DownloadFormProps) => {
     setShowProgress(true);
     setDownloadProgress(0);
     
-    // Simulate download progress
+    // Start progress animation
     const progressInterval = setInterval(() => {
       setDownloadProgress(prev => {
-        const newProgress = prev + Math.random() * 15;
-        return newProgress >= 100 ? 100 : newProgress;
+        const newProgress = prev + Math.random() * 10;
+        return newProgress >= 95 ? 95 : newProgress; // Max out at 95% until actual completion
       });
-    }, 500);
+    }, 300);
 
     try {
-      // In a real application, we would call a backend API here
-      // For demonstration, we'll use a direct download approach
+      // Call our Supabase Edge Function
+      const { data, error } = await supabase.functions.invoke('video-downloader', {
+        body: { url: url.trim(), platform },
+      });
       
-      // Create a downloadable anchor element
-      const downloadVideo = async () => {
-        // This is a client-side only approach for demonstration
-        // In a real app, you would use a backend service to process the video
-        
-        // Process URL for consistency
-        let processedUrl = url.trim();
-        if (!processedUrl.startsWith('http://') && !processedUrl.startsWith('https://')) {
-          processedUrl = 'https://' + processedUrl;
-        }
-        
-        // Get video ID from URL (improved extraction)
-        const videoId = extractVideoId(processedUrl, platform);
-        
-        if (!videoId) {
-          throw new Error('Could not extract video ID from URL');
-        }
-        
-        console.log(`Successfully extracted video ID: ${videoId} from platform: ${platform}`);
-        
-        // For demonstration, we're creating a download from the original URL
-        // In a real app, you would process this through a backend
-        const a = document.createElement('a');
-        
-        // In a real implementation, this would be the processed video URL from your backend
-        // For now, we'll just use the original URL for demonstration
-        a.href = processedUrl;
-        a.download = `${platform.toLowerCase()}-video-${videoId}.mp4`;
-        document.body.appendChild(a);
-        
-        // Wait for progress to complete for better UX
-        await new Promise(resolve => setTimeout(resolve, 2500));
-        
-        // Trigger download
-        a.click();
-        
-        // Clean up
-        document.body.removeChild(a);
-      };
+      if (error) {
+        throw new Error(`Function error: ${error.message}`);
+      }
       
-      await downloadVideo();
+      if (!data || !data.downloadUrl) {
+        throw new Error('No download URL returned');
+      }
       
-      toast.success(`Download started for your ${platform} video!`);
+      console.log("Video data received:", data);
+      
+      // Complete the progress bar to 100%
+      setDownloadProgress(100);
+      
+      // Trigger the download using the URL received from the edge function
+      triggerDownload(data.downloadUrl, data.title || `${platform.toLowerCase()}-video`);
+      
+      // Show success message with any additional info from the backend
+      toast.success(data.message || `Download started for your ${platform} video!`);
       setUrl('');
     } catch (error) {
       console.error("Download error:", error);
@@ -143,107 +109,21 @@ const DownloadForm = ({ platform, platformColor }: DownloadFormProps) => {
     }
   };
   
-  // Improved YouTube video ID extraction with comprehensive format support
-  const extractVideoId = (url: string, platform: string): string | null => {
+  // Function to trigger the actual download
+  const triggerDownload = (url: string, filename: string) => {
     try {
-      if (platform === 'YouTube') {
-        // Handle YouTube URLs without protocol
-        let processedUrl = url.trim();
-        if (!processedUrl.startsWith('http://') && !processedUrl.startsWith('https://')) {
-          processedUrl = 'https://' + processedUrl;
-        }
-        
-        console.log("Extracting from URL:", processedUrl);
-        
-        // Pattern for YouTube video ID extraction - comprehensive regex approach
-        const youtubeRegex = /(?:youtube\.com\/(?:[^/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?/\s]{11})/i;
-        const match = processedUrl.match(youtubeRegex);
-        
-        if (match && match[1]) {
-          console.log("Matched YouTube ID via regex:", match[1]);
-          return match[1];
-        }
-        
-        // If regex doesn't work, try URL parsing
-        try {
-          const urlObj = new URL(processedUrl);
-          
-          // Handle youtube.com/watch?v=VIDEO_ID
-          if (urlObj.pathname.includes('/watch')) {
-            const videoId = urlObj.searchParams.get('v');
-            console.log("Extracted via /watch path:", videoId);
-            return videoId;
-          }
-          // Handle youtu.be/VIDEO_ID
-          else if (urlObj.hostname.includes('youtu.be')) {
-            const videoId = urlObj.pathname.slice(1);
-            console.log("Extracted via youtu.be path:", videoId);
-            return videoId;
-          }
-          // Handle youtube.com/shorts/VIDEO_ID
-          else if (urlObj.pathname.includes('/shorts/')) {
-            const videoId = urlObj.pathname.split('/shorts/')[1]?.split('/')[0] || null;
-            console.log("Extracted via /shorts path:", videoId);
-            return videoId;
-          }
-          // Handle youtube.com/embed/VIDEO_ID
-          else if (urlObj.pathname.includes('/embed/')) {
-            const videoId = urlObj.pathname.split('/embed/')[1]?.split('/')[0] || null;
-            console.log("Extracted via /embed path:", videoId);
-            return videoId;
-          }
-          // Handle youtube.com/v/VIDEO_ID
-          else if (urlObj.pathname.includes('/v/')) {
-            const videoId = urlObj.pathname.split('/v/')[1]?.split('/')[0] || null;
-            console.log("Extracted via /v path:", videoId);
-            return videoId;
-          }
-          
-          console.log("No YouTube ID extracted via URL parsing");
-        } catch (e) {
-          console.error("URL parsing error:", e);
-        }
-        
-        console.log("No YouTube ID could be extracted");
-        return null;
-      } else {
-        // For other platforms, use the existing extraction logic
-        const urlObj = new URL(url);
-        
-        switch(platform) {
-          case 'Instagram':
-            // Handle instagram.com/p/CODE/ or instagram.com/reel/CODE/
-            const matches = urlObj.pathname.match(/\/(p|reel|tv)\/([^\/]+)/);
-            return matches ? matches[2] : null;
-          
-          case 'Facebook':
-            // Simple extraction for Facebook videos
-            const fbVideoId = urlObj.pathname.split('/').pop();
-            return fbVideoId || null;
-            
-          case 'Twitter':
-            // Handle twitter.com/user/status/ID
-            if (urlObj.pathname.includes('/status/')) {
-              return urlObj.pathname.split('/status/')[1]?.split('/')[0] || null;
-            }
-            break;
-            
-          case 'Pinterest':
-            // Handle pinterest.com/pin/ID/
-            if (urlObj.pathname.includes('/pin/')) {
-              return urlObj.pathname.split('/pin/')[1]?.split('/')[0] || null;
-            }
-            break;
-            
-          default:
-            return null;
-        }
-        
-        return null;
-      }
-    } catch (e) {
-      console.error("Error extracting video ID:", e);
-      return null;
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${filename}.mp4`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      
+      console.log(`Download triggered for URL: ${url}`);
+    } catch (error) {
+      console.error("Error triggering download:", error);
+      // If direct download fails, try opening in new tab
+      window.open(url, "_blank");
     }
   };
   
