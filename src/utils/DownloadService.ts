@@ -24,21 +24,26 @@ export class DownloadService {
   static async getDownloadUrl(url: string, platform: string): Promise<VideoData> {
     console.log(`Requesting download URL for: ${url} from platform: ${platform}`);
     
-    const { data, error } = await supabase.functions.invoke('video-downloader', {
-      body: { url, platform },
-    });
-    
-    if (error) {
-      console.error("Supabase function error:", error);
-      throw new Error(`Failed to get download URL: ${error.message}`);
+    try {
+      const { data, error } = await supabase.functions.invoke('video-downloader', {
+        body: { url, platform },
+      });
+      
+      if (error) {
+        console.error("Supabase function error:", error);
+        throw new Error(`Failed to get download URL: ${error.message}`);
+      }
+      
+      if (!data || !data.downloadUrl) {
+        throw new Error('No download URL returned from the server');
+      }
+      
+      console.log("Received video data:", data);
+      return data as VideoData;
+    } catch (error) {
+      console.error("Error in getDownloadUrl:", error);
+      throw error;
     }
-    
-    if (!data || !data.downloadUrl) {
-      throw new Error('No download URL returned from the server');
-    }
-    
-    console.log("Received video data:", data);
-    return data as VideoData;
   }
   
   /**
@@ -54,19 +59,22 @@ export class DownloadService {
       const timestamp = new Date().toISOString().slice(0, 10);
       const filename = `${platform}-${safeTitle}-${timestamp}`;
       
-      const a = document.createElement('a');
-      a.href = downloadUrl;
-      a.download = `${filename}.mp4`;
+      // Check if the URL is a direct file (ends with a video extension)
+      const isDirectFile = /\.(mp4|mov|avi|wmv|flv|mkv|webm)$/i.test(downloadUrl);
       
-      // For certain platforms, if direct download won't work, try opening in new tab
-      const platformsThatMayRequireNewTab = ['YouTube', 'Facebook'];
-      if (platformsThatMayRequireNewTab.includes(platform)) {
+      if (isDirectFile) {
+        // For direct video file URLs
+        const a = document.createElement('a');
+        a.href = downloadUrl;
+        a.download = `${filename}.mp4`;
         a.setAttribute('target', '_blank');
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      } else {
+        // For URLs that might need to be opened in a new tab (e.g. downloadable page)
+        window.open(downloadUrl, "_blank");
       }
-      
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
       
       console.log(`Download triggered for URL: ${downloadUrl}, filename: ${filename}.mp4`);
     } catch (error) {

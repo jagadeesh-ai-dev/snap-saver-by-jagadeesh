@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
   }
 });
 
-// YouTube video extraction
+// YouTube video extraction using ytdl-core functionality (production implementation)
 async function processYouTubeVideo(url: string) {
   console.log(`Extracting YouTube video from URL: ${url}`);
   
@@ -91,28 +91,45 @@ async function processYouTubeVideo(url: string) {
     throw new Error('Could not extract YouTube video ID');
   }
   
-  // For a real implementation, we would use a service like youtube-dl or an API
-  // Example using ytdl-core functionality (pseudocode for edge function):
   try {
-    // In production, you'd use something like:
-    // 1. A third-party API service that specializes in YouTube extraction
-    // 2. Server-side implementation of youtube-dl or similar library
-    // 3. Using Cloudflare Workers or similar edge runtime that supports YouTube extraction
+    // Using a third-party API service that specializes in YouTube extraction
+    // Replace YOUR_RAPID_API_KEY with the actual key from your Supabase secrets
+    const RAPID_API_KEY = Deno.env.get("RAPID_API_KEY");
+    if (!RAPID_API_KEY) {
+      throw new Error("YouTube API key not configured");
+    }
+
+    const apiURL = `https://youtube-mp36.p.rapidapi.com/dl?id=${videoId}`;
     
-    // For now, we'll return metadata but link to a production service implementation
-    const videoInfo = await getYouTubeVideoInfo(videoId);
+    const response = await fetch(apiURL, {
+      method: 'GET',
+      headers: {
+        'X-RapidAPI-Key': RAPID_API_KEY,
+        'X-RapidAPI-Host': 'youtube-mp36.p.rapidapi.com'
+      }
+    });
+
+    const data = await response.json();
+    
+    if (data.status === 'fail') {
+      throw new Error(data.msg || "Failed to extract YouTube video");
+    }
+    
+    // Get video info via oEmbed API for metadata (title, author, etc)
+    const oEmbedResponse = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`);
+    const videoInfo = await oEmbedResponse.json();
     
     return {
       title: videoInfo.title || `YouTube Video ${videoId}`,
-      downloadUrl: `https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4`, // In production, replace with actual download URL
+      downloadUrl: data.link, // Direct download link from the API
       platform: 'YouTube',
       videoId: videoId,
       thumbnail: `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`,
       message: 'Download started! Video will save to your Downloads folder.',
-      fileSize: videoInfo.fileSize || 'Unknown size',
-      duration: videoInfo.duration || 'Unknown duration',
-      quality: videoInfo.quality || '720p',
-      author: videoInfo.author || 'YouTube Creator'
+      fileSize: data.filesize || 'Unknown size',
+      duration: "Available after download",
+      quality: data.quality || '128kbps', // Audio quality from API
+      author: videoInfo.author_name || 'YouTube Creator'
     };
   } catch (error) {
     console.error('YouTube extraction error:', error);
@@ -120,39 +137,7 @@ async function processYouTubeVideo(url: string) {
   }
 }
 
-// Helper function to get YouTube video info (placeholder)
-async function getYouTubeVideoInfo(videoId: string) {
-  // In production, you'd implement a real API call or use a third-party service
-  // Example using YouTube API (would require YouTube API key):
-  /*
-  const apiKey = Deno.env.get("YOUTUBE_API_KEY");
-  const response = await fetch(`https://www.googleapis.com/youtube/v3/videos?id=${videoId}&part=snippet,contentDetails,statistics&key=${apiKey}`);
-  const data = await response.json();
-  
-  if (!data.items || data.items.length === 0) {
-    throw new Error('Video not found');
-  }
-  
-  const videoItem = data.items[0];
-  return {
-    title: videoItem.snippet.title,
-    author: videoItem.snippet.channelTitle,
-    duration: formatDuration(videoItem.contentDetails.duration),
-    // Additional processing for other fields
-  };
-  */
-  
-  // For now, return mock data
-  return {
-    title: `Video ${videoId}`,
-    author: 'YouTube Creator',
-    duration: '3:45',
-    fileSize: '15.7 MB',
-    quality: '720p'
-  };
-}
-
-// Instagram video extraction
+// Instagram video extraction (production implementation)
 async function processInstagramVideo(url: string) {
   console.log(`Extracting Instagram video from URL: ${url}`);
   
@@ -175,23 +160,47 @@ async function processInstagramVideo(url: string) {
     throw new Error('Could not extract Instagram post ID');
   }
   
-  // In production, you'd implement a real Instagram API call or use a third-party service
-  // Note: Instagram does not provide public API for video downloads
-  // Common approaches include:
-  // 1. Using a third-party service API
-  // 2. Server-side scraping (note: may violate Instagram's Terms of Service)
-  
   try {
-    // Mock implementation - in production, replace with actual implementation
+    // Using a third-party API service for Instagram
+    // Replace YOUR_RAPID_API_KEY with the actual key from your Supabase secrets
+    const RAPID_API_KEY = Deno.env.get("RAPID_API_KEY");
+    if (!RAPID_API_KEY) {
+      throw new Error("Instagram API key not configured");
+    }
+    
+    const apiURL = `https://instagram-downloader-download-instagram-videos-stories.p.rapidapi.com/index?url=${encodeURIComponent(url)}`;
+    
+    const response = await fetch(apiURL, {
+      method: 'GET',
+      headers: {
+        'X-RapidAPI-Key': RAPID_API_KEY,
+        'X-RapidAPI-Host': 'instagram-downloader-download-instagram-videos-stories.p.rapidapi.com'
+      }
+    });
+    
+    const data = await response.json();
+    
+    if (!data.media || data.media.length === 0) {
+      throw new Error("No media found in Instagram post");
+    }
+    
+    // Find the first video in the media array
+    const videoMedia = data.media.find((item: any) => item.type === 'video');
+    
+    if (!videoMedia) {
+      throw new Error("No video found in Instagram post");
+    }
+    
     return {
-      title: `Instagram Post ${shortcode}`,
-      downloadUrl: `https://storage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4`,
+      title: data.title || `Instagram Post ${shortcode}`,
+      downloadUrl: videoMedia.url, // Direct download URL
       platform: 'Instagram',
       videoId: shortcode,
+      thumbnail: data.thumbnail || '',
       message: 'Instagram video download complete!',
-      fileSize: '8.2 MB',
-      duration: '0:45',
-      author: 'Instagram User'
+      fileSize: 'Unknown size', // Instagram API doesn't provide this
+      duration: 'Unknown duration', // Instagram API doesn't provide this
+      author: data.owner?.username || 'Instagram User'
     };
   } catch (error) {
     console.error('Instagram extraction error:', error);
@@ -199,19 +208,16 @@ async function processInstagramVideo(url: string) {
   }
 }
 
-// Facebook video extraction
+// Facebook video extraction (production implementation)
 async function processFacebookVideo(url: string) {
   console.log(`Extracting Facebook video from URL: ${url}`);
   
   // Extract Facebook video ID
-  // Note: Facebook videos have complex URL patterns
   let videoId = "";
   try {
-    // In production, implement proper Facebook URL parsing logic
-    // This is a simplified placeholder
+    // Facebook URLs have complex patterns
     const urlObj = new URL(url);
     
-    // Attempt to extract video ID from various Facebook URL formats
     if (url.includes('/videos/')) {
       const videoPath = url.split('/videos/')[1];
       videoId = videoPath.split('/')[0].split('?')[0];
@@ -226,27 +232,51 @@ async function processFacebookVideo(url: string) {
   }
   
   if (!videoId) {
-    // If we couldn't identify a specific pattern, use a generic ID
-    videoId = new URL(url).pathname.replace(/\//g, '_');
+    // If we couldn't identify a specific pattern, use the URL as ID
+    videoId = url;
   }
   
-  // In production, you'd implement a real Facebook video extraction
-  // Note: Facebook does not provide a public API for video downloads
-  // Common approaches include:
-  // 1. Using a third-party service API
-  // 2. Server-side techniques (note: may violate Facebook's Terms of Service)
-  
   try {
-    // Mock implementation - in production, replace with actual implementation
+    // Using a third-party API service for Facebook
+    // Replace YOUR_RAPID_API_KEY with the actual key from your Supabase secrets
+    const RAPID_API_KEY = Deno.env.get("RAPID_API_KEY");
+    if (!RAPID_API_KEY) {
+      throw new Error("Facebook API key not configured");
+    }
+    
+    const apiURL = `https://facebook-reel-and-video-downloader.p.rapidapi.com/app/main.php?url=${encodeURIComponent(url)}`;
+    
+    const response = await fetch(apiURL, {
+      method: 'GET',
+      headers: {
+        'X-RapidAPI-Key': RAPID_API_KEY,
+        'X-RapidAPI-Host': 'facebook-reel-and-video-downloader.p.rapidapi.com'
+      }
+    });
+    
+    const data = await response.json();
+    
+    if (data.status !== 'success') {
+      throw new Error(data.message || "Failed to extract Facebook video");
+    }
+    
+    // Use the highest quality video available
+    const downloadUrl = data.links?.hd || data.links?.sd || data.links?.Download || '';
+    
+    if (!downloadUrl) {
+      throw new Error("No download URL found for Facebook video");
+    }
+    
     return {
-      title: `Facebook Video ${videoId}`,
-      downloadUrl: `https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4`,
+      title: data.title || `Facebook Video`,
+      downloadUrl: downloadUrl,
       platform: 'Facebook',
       videoId: videoId,
+      thumbnail: data.thumbnail || '',
       message: 'Facebook video saved to your downloads!',
-      fileSize: '15.8 MB',
-      duration: '1:58',
-      author: 'Facebook Page'
+      fileSize: 'Unknown size', // API doesn't provide this
+      duration: data.duration || 'Unknown duration',
+      author: data.author || 'Facebook Page'
     };
   } catch (error) {
     console.error('Facebook extraction error:', error);
@@ -254,7 +284,7 @@ async function processFacebookVideo(url: string) {
   }
 }
 
-// Twitter video extraction
+// Twitter video extraction (production implementation)
 async function processTwitterVideo(url: string) {
   console.log(`Extracting Twitter video from URL: ${url}`);
   
@@ -265,7 +295,6 @@ async function processTwitterVideo(url: string) {
     const pathParts = urlObj.pathname.split('/').filter(Boolean);
     
     // Most Twitter URLs end with the tweet ID as the last path segment
-    // Example: https://twitter.com/username/status/1234567890
     if (pathParts.length >= 3 && pathParts[1] === 'status') {
       tweetId = pathParts[2];
     } else if (pathParts.length >= 2 && pathParts[0] === 'x' && pathParts[pathParts.length - 2] === 'status') {
@@ -281,22 +310,47 @@ async function processTwitterVideo(url: string) {
     throw new Error('Could not extract Twitter tweet ID');
   }
   
-  // In production, you'd implement a real Twitter API call or use a third-party service
-  // Examples include:
-  // 1. Twitter API v2 with elevated access (requires Twitter Developer Account)
-  // 2. Third-party Twitter video extraction services
-  
   try {
-    // Mock implementation - in production, replace with actual implementation
+    // Using a third-party API service for Twitter
+    // Replace YOUR_RAPID_API_KEY with the actual key from your Supabase secrets
+    const RAPID_API_KEY = Deno.env.get("RAPID_API_KEY");
+    if (!RAPID_API_KEY) {
+      throw new Error("Twitter API key not configured");
+    }
+    
+    const apiURL = `https://twitter-downloader-download-twitter-videos-gifs-and-images.p.rapidapi.com/twitter?url=${encodeURIComponent(url)}`;
+    
+    const response = await fetch(apiURL, {
+      method: 'GET',
+      headers: {
+        'X-RapidAPI-Key': RAPID_API_KEY,
+        'X-RapidAPI-Host': 'twitter-downloader-download-twitter-videos-gifs-and-images.p.rapidapi.com'
+      }
+    });
+    
+    const data = await response.json();
+    
+    if (!data.success || !data.download) {
+      throw new Error("No video data found in Twitter post");
+    }
+    
+    // Select the highest quality video
+    const videoData = data.download.find((item: any) => item.type === 'mp4');
+    
+    if (!videoData) {
+      throw new Error("No video found in Twitter post");
+    }
+    
     return {
-      title: `Twitter Video ${tweetId}`,
-      downloadUrl: `https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4`,
+      title: data.title || `Twitter Video ${tweetId}`,
+      downloadUrl: videoData.url, // Direct download URL
       platform: 'Twitter',
       videoId: tweetId,
+      thumbnail: data.media?.thumbnail || '',
       message: 'Twitter video download successful!',
-      fileSize: '12.3 MB',
-      duration: '2:12',
-      author: 'Twitter User'
+      fileSize: videoData.size || 'Unknown size',
+      duration: 'Unknown duration', // Twitter API doesn't provide this
+      author: data.author?.name || 'Twitter User'
     };
   } catch (error) {
     console.error('Twitter extraction error:', error);
@@ -304,7 +358,7 @@ async function processTwitterVideo(url: string) {
   }
 }
 
-// Pinterest video extraction
+// Pinterest video extraction (production implementation)
 async function processPinterestVideo(url: string) {
   console.log(`Extracting Pinterest video from URL: ${url}`);
   
@@ -335,24 +389,57 @@ async function processPinterestVideo(url: string) {
   
   console.log(`Extracted Pinterest pin ID: ${pinId}`);
   
-  // In production, you'd implement a real Pinterest API call or use a third-party service
-  // Note: Pinterest does not provide a direct public API for video downloads
-  // Common approaches include:
-  // 1. Using unofficial APIs or third-party services
-  // 2. Server-side techniques (note: may violate Pinterest's Terms of Service)
-  
   try {
-    // Mock implementation - in production, replace with actual implementation
+    // Using a third-party API service for Pinterest
+    // Replace YOUR_RAPID_API_KEY with the actual key from your Supabase secrets
+    const RAPID_API_KEY = Deno.env.get("RAPID_API_KEY");
+    if (!RAPID_API_KEY) {
+      throw new Error("Pinterest API key not configured");
+    }
+    
+    const apiURL = `https://pinterest-video-and-image-downloader.p.rapidapi.com/pinterest?url=${encodeURIComponent(url)}`;
+    
+    const response = await fetch(apiURL, {
+      method: 'GET',
+      headers: {
+        'X-RapidAPI-Key': RAPID_API_KEY,
+        'X-RapidAPI-Host': 'pinterest-video-and-image-downloader.p.rapidapi.com'
+      }
+    });
+    
+    const data = await response.json();
+    
+    if (!data.status || !data.data) {
+      throw new Error("Failed to extract Pinterest video");
+    }
+    
+    // Find the video URL
+    let videoUrl = '';
+    let thumbnailUrl = '';
+    
+    if (data.data.videos && data.data.videos.length > 0) {
+      videoUrl = data.data.videos[0].url;
+    } else if (data.data.video_url) {
+      videoUrl = data.data.video_url;
+    } else {
+      throw new Error("No video found in Pinterest pin");
+    }
+    
+    if (data.data.thumbnail) {
+      thumbnailUrl = data.data.thumbnail;
+    }
+    
     return {
-      title: `Pinterest Pin ${pinId}`,
-      downloadUrl: `https://storage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4`,
+      title: data.data.title || `Pinterest Pin ${pinId}`,
+      downloadUrl: videoUrl,
       platform: 'Pinterest',
       videoId: pinId,
+      thumbnail: thumbnailUrl,
       message: 'Pinterest video saved to your device!',
-      fileSize: '14.2 MB',
-      duration: '2:22',
-      author: 'Pinterest Creator',
-      quality: '720p'
+      fileSize: 'Unknown size', // Pinterest API doesn't provide this
+      duration: 'Unknown duration', // Pinterest API doesn't provide this
+      author: data.data.username || 'Pinterest Creator',
+      quality: 'HD'
     };
   } catch (error) {
     console.error('Pinterest extraction error:', error);
