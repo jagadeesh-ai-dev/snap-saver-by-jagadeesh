@@ -1,5 +1,6 @@
 
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 export interface VideoData {
   title: string;
@@ -12,6 +13,13 @@ export interface VideoData {
   duration?: string;
   quality?: string;
   author?: string;
+}
+
+interface ApiErrorResponse {
+  error: string;
+  message?: string;
+  apiName?: string;
+  subscriptionUrl?: string;
 }
 
 export class DownloadService {
@@ -32,6 +40,25 @@ export class DownloadService {
       if (error) {
         console.error("Supabase function error:", error);
         throw new Error(`Failed to get download URL: ${error.message}`);
+      }
+      
+      // Handle API-specific error responses
+      if ('error' in data) {
+        const apiError = data as ApiErrorResponse;
+        
+        if (apiError.error === "API subscription required") {
+          // Specific handling for subscription issues
+          toast.error("API subscription required", {
+            description: "The selected API requires a subscription.",
+            action: {
+              label: "Subscribe",
+              onClick: () => window.open(apiError.subscriptionUrl, "_blank"),
+            },
+          });
+          throw new Error(`API subscription required for ${apiError.apiName || platform}`);
+        }
+        
+        throw new Error(apiError.message || apiError.error);
       }
       
       if (!data || !data.downloadUrl) {

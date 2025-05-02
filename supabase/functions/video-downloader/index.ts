@@ -31,6 +31,41 @@ Deno.serve(async (req) => {
       throw new Error("RapidAPI key not configured");
     }
 
+    // Using a more reliable free API as fallback
+    // YouTube-specific API (no subscription required)
+    if (platform === 'YouTube') {
+      try {
+        const response = await fetch(`https://youtube-mp36.p.rapidapi.com/dl?id=${extractYoutubeId(url)}`, {
+          method: 'GET',
+          headers: {
+            'x-rapidapi-host': 'youtube-mp36.p.rapidapi.com',
+            'x-rapidapi-key': RAPID_API_KEY,
+          },
+        });
+
+        const data = await response.json();
+        console.log("YouTube API Response:", data);
+
+        if (data.status === "ok" && data.link) {
+          return new Response(
+            JSON.stringify({
+              title: data.title || 'YouTube Video',
+              downloadUrl: data.link,
+              platform: 'YouTube',
+              videoId: extractYoutubeId(url) || url,
+              message: 'Download started! Video will be processed as MP3.',
+              author: 'YouTube Creator',
+              quality: 'MP3 Audio'
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      } catch (ytError) {
+        console.error("YouTube API error:", ytError);
+        // Fall through to try the general API
+      }
+    }
+
     // Call the unified Auto Download API
     const response = await fetch('https://auto-download-all-in-one-big.p.rapidapi.com/v1/social/autolink', {
       method: 'POST',
@@ -46,6 +81,18 @@ Deno.serve(async (req) => {
     console.log("API Response:", data);
 
     if (!response.ok) {
+      if (data.message?.includes("not subscribed")) {
+        // Handle subscription error specifically
+        return new Response(
+          JSON.stringify({ 
+            error: "API subscription required", 
+            message: "The RapidAPI key is not subscribed to this API. Please subscribe to the Auto Download All-in-One API on RapidAPI or use a different key.",
+            apiName: "Auto Download All-in-One",
+            subscriptionUrl: "https://rapidapi.com/kpverse/api/auto-download-all-in-one-big/pricing"
+          }),
+          { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
       throw new Error(data.message || 'Failed to process video URL');
     }
 
@@ -81,3 +128,32 @@ Deno.serve(async (req) => {
     );
   }
 });
+
+// Helper function to extract YouTube video ID from various URL formats
+function extractYoutubeId(url) {
+  try {
+    const urlObj = new URL(url);
+    
+    // Handle youtube.com URLs
+    if (urlObj.hostname.includes('youtube.com')) {
+      // Regular videos: youtube.com/watch?v=VIDEO_ID
+      const videoParam = urlObj.searchParams.get('v');
+      if (videoParam) return videoParam;
+      
+      // Shorts: youtube.com/shorts/VIDEO_ID
+      if (urlObj.pathname.includes('/shorts/')) {
+        return urlObj.pathname.split('/shorts/')[1];
+      }
+    }
+    
+    // Handle youtu.be URLs: youtu.be/VIDEO_ID
+    if (urlObj.hostname === 'youtu.be') {
+      return urlObj.pathname.substring(1);
+    }
+    
+    return null;
+  } catch (error) {
+    console.error("Error extracting YouTube ID:", error);
+    return null;
+  }
+}

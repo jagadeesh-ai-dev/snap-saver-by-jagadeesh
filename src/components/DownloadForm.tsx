@@ -20,6 +20,7 @@ const DownloadForm = ({ platform, platformColor }: DownloadFormProps) => {
   const [showProgress, setShowProgress] = useState(false);
   const [showAdModal, setShowAdModal] = useState(false);
   const [videoData, setVideoData] = useState<VideoData | null>(null);
+  const [error, setError] = useState<string | null>(null);
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,6 +39,7 @@ const DownloadForm = ({ platform, platformColor }: DownloadFormProps) => {
     setIsLoading(true);
     setShowProgress(true);
     setDownloadProgress(0);
+    setError(null);
     
     // Start progress animation
     const progressInterval = setInterval(() => {
@@ -62,7 +64,22 @@ const DownloadForm = ({ platform, platformColor }: DownloadFormProps) => {
       
     } catch (error) {
       console.error("Download error:", error);
-      toast.error(`Failed to download: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      
+      setError(error instanceof Error ? error.message : 'Unknown error');
+      
+      if (error instanceof Error && error.message.includes("API subscription required")) {
+        toast.error("API Subscription Required", {
+          description: "The developer needs to subscribe to the RapidAPI service for this feature to work.",
+          action: {
+            label: "Learn More",
+            onClick: () => window.open("https://rapidapi.com/kpverse/api/auto-download-all-in-one-big/pricing", "_blank"),
+          },
+          duration: 10000,
+        });
+      } else {
+        toast.error(`Failed to download: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+      
       setShowProgress(false);
     } finally {
       clearInterval(progressInterval);
@@ -124,6 +141,26 @@ const DownloadForm = ({ platform, platformColor }: DownloadFormProps) => {
               <span>{Math.round(downloadProgress)}%</span>
             </div>
             <Progress value={downloadProgress} className="h-2" />
+          </div>
+        )}
+        
+        {error && (
+          <div className="p-4 border border-red-200 bg-red-50 rounded-md flex items-start gap-3 text-red-800">
+            <AlertCircle className="h-5 w-5 mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="font-medium">Unable to download video</p>
+              <p className="text-sm mt-1">{error}</p>
+              {error.includes("API subscription required") && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="mt-2 text-xs border-red-300 hover:bg-red-100"
+                  onClick={() => window.open("https://rapidapi.com/kpverse/api/auto-download-all-in-one-big/pricing", "_blank")}
+                >
+                  Subscribe to API
+                </Button>
+              )}
+            </div>
           </div>
         )}
         
