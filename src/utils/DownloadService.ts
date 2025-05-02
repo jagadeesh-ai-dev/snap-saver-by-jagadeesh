@@ -20,6 +20,10 @@ interface ApiErrorResponse {
   message?: string;
   apiName?: string;
   subscriptionUrl?: string;
+  title?: string;
+  videoId?: string;
+  duration?: string;
+  platform?: string;
 }
 
 export class DownloadService {
@@ -33,7 +37,7 @@ export class DownloadService {
     console.log(`Requesting download URL for: ${url} from platform: ${platform}`);
     
     try {
-      const { data, error } = await supabase.functions.invoke('video-downloader', {
+      const { data, error, status } = await supabase.functions.invoke('video-downloader', {
         body: { url, platform },
       });
       
@@ -56,6 +60,15 @@ export class DownloadService {
             },
           });
           throw new Error(`API subscription required for ${apiError.apiName || platform}`);
+        }
+        
+        if (apiError.error === "Video is still processing") {
+          // Handle videos still in processing state
+          toast.warning(apiError.error, {
+            description: apiError.message || "Please try again later",
+            duration: 6000,
+          });
+          throw new Error(apiError.message || "Video is still processing");
         }
         
         throw new Error(apiError.message || apiError.error);
@@ -87,13 +100,13 @@ export class DownloadService {
       const filename = `${platform}-${safeTitle}-${timestamp}`;
       
       // Check if the URL is a direct file (ends with a video extension)
-      const isDirectFile = /\.(mp4|mov|avi|wmv|flv|mkv|webm)$/i.test(downloadUrl);
+      const isDirectFile = /\.(mp4|mov|avi|wmv|flv|mkv|webm|mp3)$/i.test(downloadUrl);
       
       if (isDirectFile) {
         // For direct video file URLs
         const a = document.createElement('a');
         a.href = downloadUrl;
-        a.download = `${filename}.mp4`;
+        a.download = `${filename}${downloadUrl.endsWith('mp3') ? '.mp3' : '.mp4'}`;
         a.setAttribute('target', '_blank');
         document.body.appendChild(a);
         a.click();
@@ -103,7 +116,7 @@ export class DownloadService {
         window.open(downloadUrl, "_blank");
       }
       
-      console.log(`Download triggered for URL: ${downloadUrl}, filename: ${filename}.mp4`);
+      console.log(`Download triggered for URL: ${downloadUrl}, filename: ${filename}${downloadUrl.endsWith('mp3') ? '.mp3' : '.mp4'}`);
     } catch (error) {
       console.error("Error triggering download:", error);
       // Fallback to opening in a new tab if download fails

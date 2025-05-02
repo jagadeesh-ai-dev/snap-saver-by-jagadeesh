@@ -35,7 +35,12 @@ Deno.serve(async (req) => {
     // YouTube-specific API (no subscription required)
     if (platform === 'YouTube') {
       try {
-        const response = await fetch(`https://youtube-mp36.p.rapidapi.com/dl?id=${extractYoutubeId(url)}`, {
+        const videoId = extractYoutubeId(url);
+        if (!videoId) {
+          throw new Error("Could not extract YouTube video ID");
+        }
+
+        const response = await fetch(`https://youtube-mp36.p.rapidapi.com/dl?id=${videoId}`, {
           method: 'GET',
           headers: {
             'x-rapidapi-host': 'youtube-mp36.p.rapidapi.com',
@@ -52,13 +57,29 @@ Deno.serve(async (req) => {
               title: data.title || 'YouTube Video',
               downloadUrl: data.link,
               platform: 'YouTube',
-              videoId: extractYoutubeId(url) || url,
+              videoId: videoId,
               message: 'Download started! Video will be processed as MP3.',
               author: 'YouTube Creator',
-              quality: 'MP3 Audio'
+              quality: 'MP3 Audio',
+              fileSize: data.filesize ? `${Math.round(data.filesize / 1024)} KB` : 'Unknown size'
             }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
+        } else if (data.status === "processing") {
+          // Handle videos that are still being processed
+          return new Response(
+            JSON.stringify({
+              error: "Video is still processing",
+              message: "This video is currently being processed by YouTube. Please try again in a few minutes.",
+              title: data.title || "YouTube Video",
+              videoId: videoId,
+              duration: data.duration || 'Unknown duration',
+              platform: 'YouTube'
+            }),
+            { status: 202, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        } else {
+          throw new Error(data.msg || "Failed to process YouTube video");
         }
       } catch (ytError) {
         console.error("YouTube API error:", ytError);
@@ -81,12 +102,12 @@ Deno.serve(async (req) => {
     console.log("API Response:", data);
 
     if (!response.ok) {
-      if (data.message?.includes("not subscribed")) {
+      if (data.message?.includes("not subscribed") || response.status === 429) {
         // Handle subscription error specifically
         return new Response(
           JSON.stringify({ 
             error: "API subscription required", 
-            message: "The RapidAPI key is not subscribed to this API. Please subscribe to the Auto Download All-in-One API on RapidAPI or use a different key.",
+            message: "The RapidAPI key is not subscribed to this API or rate limit exceeded. Please subscribe to the Auto Download All-in-One API on RapidAPI or use a different key.",
             apiName: "Auto Download All-in-One",
             subscriptionUrl: "https://rapidapi.com/kpverse/api/auto-download-all-in-one-big/pricing"
           }),
@@ -123,7 +144,11 @@ Deno.serve(async (req) => {
     console.error('Error processing video:', error);
     
     return new Response(
-      JSON.stringify({ error: error.message || 'Failed to process video' }),
+      JSON.stringify({ 
+        error: error.message || 'Failed to process video',
+        platform: req.json?.platform || 'Unknown',
+        url: req.json?.url || 'Unknown URL'
+      }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

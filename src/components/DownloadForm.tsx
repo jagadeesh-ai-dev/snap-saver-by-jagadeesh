@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
-import { Download, AlertCircle } from 'lucide-react';
+import { Download, AlertCircle, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { Progress } from './ui/progress';
 import AdModal from './AdModal';
@@ -21,6 +21,8 @@ const DownloadForm = ({ platform, platformColor }: DownloadFormProps) => {
   const [showAdModal, setShowAdModal] = useState(false);
   const [videoData, setVideoData] = useState<VideoData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [processingVideoId, setProcessingVideoId] = useState<string | null>(null);
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,6 +42,7 @@ const DownloadForm = ({ platform, platformColor }: DownloadFormProps) => {
     setShowProgress(true);
     setDownloadProgress(0);
     setError(null);
+    setIsProcessing(false);
     
     // Start progress animation
     const progressInterval = setInterval(() => {
@@ -65,25 +68,57 @@ const DownloadForm = ({ platform, platformColor }: DownloadFormProps) => {
     } catch (error) {
       console.error("Download error:", error);
       
-      setError(error instanceof Error ? error.message : 'Unknown error');
-      
-      if (error instanceof Error && error.message.includes("API subscription required")) {
-        toast.error("API Subscription Required", {
-          description: "The developer needs to subscribe to the RapidAPI service for this feature to work.",
-          action: {
-            label: "Learn More",
-            onClick: () => window.open("https://rapidapi.com/kpverse/api/auto-download-all-in-one-big/pricing", "_blank"),
-          },
-          duration: 10000,
-        });
-      } else {
-        toast.error(`Failed to download: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      }
-      
-      setShowProgress(false);
-    } finally {
       clearInterval(progressInterval);
+      
+      // If it's a processing error, show processing message
+      if (error instanceof Error && error.message.includes("Video is still processing")) {
+        setIsProcessing(true);
+        // Extract video ID if available in error message
+        const videoIdMatch = url.match(/(?:shorts|watch\?v=|youtu\.be\/|\/v\/|\/e\/|\/embed\/|\/v\/|\/watch\?.*v=|\/watch\?.*v%3D)([^#\&\?\n]*)/);
+        setProcessingVideoId(videoIdMatch ? videoIdMatch[1] : null);
+        setDownloadProgress(50); // Set to middle to indicate waiting
+        
+        toast.warning("Video is processing", {
+          description: "YouTube is still processing this video. Please try again in a few minutes.",
+          duration: 8000,
+        });
+        
+        setError("YouTube is still processing this video. Please try again in a few minutes.");
+      } else {
+        setError(error instanceof Error ? error.message : 'Unknown error');
+        
+        if (error instanceof Error && error.message.includes("API subscription required")) {
+          toast.error("API Subscription Required", {
+            description: "The developer needs to subscribe to the RapidAPI service for this feature to work.",
+            action: {
+              label: "Learn More",
+              onClick: () => window.open("https://rapidapi.com/kpverse/api/auto-download-all-in-one-big/pricing", "_blank"),
+            },
+            duration: 10000,
+          });
+        } else {
+          toast.error(`Failed to download: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+        
+        setShowProgress(false);
+      }
+    } finally {
+      if (!isProcessing) {
+        clearInterval(progressInterval);
+      }
       setIsLoading(false);
+    }
+  };
+  
+  const handleRetry = () => {
+    // Clear processing state
+    setIsProcessing(false);
+    setProcessingVideoId(null);
+    
+    // Re-submit with same URL
+    if (url) {
+      const formEvent = { preventDefault: () => {} } as React.FormEvent;
+      handleSubmit(formEvent);
     }
   };
   
@@ -137,14 +172,35 @@ const DownloadForm = ({ platform, platformColor }: DownloadFormProps) => {
         {showProgress && (
           <div className="space-y-2">
             <div className="flex justify-between text-sm text-muted-foreground">
-              <span>{videoData ? 'Download ready' : 'Processing...'}</span>
-              <span>{Math.round(downloadProgress)}%</span>
+              <span>{videoData ? 'Download ready' : (isProcessing ? 'Video processing...' : 'Processing...')}</span>
+              <span>{isProcessing ? 'Waiting for YouTube' : `${Math.round(downloadProgress)}%`}</span>
             </div>
-            <Progress value={downloadProgress} className="h-2" />
+            <Progress 
+              value={downloadProgress} 
+              className={`h-2 ${isProcessing ? 'animate-pulse bg-amber-200' : ''}`} 
+            />
           </div>
         )}
         
-        {error && (
+        {isProcessing && (
+          <div className="p-4 border border-amber-200 bg-amber-50 rounded-md flex items-start gap-3 text-amber-800">
+            <Clock className="h-5 w-5 mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="font-medium">Video is still processing</p>
+              <p className="text-sm mt-1">YouTube is still processing this video. Please try again in a few minutes.</p>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="mt-2 text-xs border-amber-300 hover:bg-amber-100"
+                onClick={handleRetry}
+              >
+                Try Again
+              </Button>
+            </div>
+          </div>
+        )}
+        
+        {error && !isProcessing && (
           <div className="p-4 border border-red-200 bg-red-50 rounded-md flex items-start gap-3 text-red-800">
             <AlertCircle className="h-5 w-5 mt-0.5 flex-shrink-0" />
             <div>
@@ -176,7 +232,7 @@ const DownloadForm = ({ platform, platformColor }: DownloadFormProps) => {
           {isLoading ? (
             <>
               <div className="h-5 w-5 rounded-full border-2 border-t-transparent border-white animate-spin" />
-              Processing...
+              {isProcessing ? 'Waiting for YouTube...' : 'Processing...'}
             </>
           ) : (
             <>
