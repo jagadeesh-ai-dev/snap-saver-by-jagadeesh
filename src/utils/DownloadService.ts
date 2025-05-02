@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 
 export interface VideoData {
@@ -105,7 +106,8 @@ export class DownloadService {
         'Instagram': ['instagram.com', 'www.instagram.com', 'instagr.am'],
         'Facebook': ['facebook.com', 'fb.com', 'fb.watch', 'www.facebook.com'],
         'Twitter': ['twitter.com', 'x.com', 'www.twitter.com'],
-        'Pinterest': ['pinterest.com', 'pin.it', 'www.pinterest.com']
+        'Pinterest': ['pinterest.com', 'pin.it', 'www.pinterest.com'],
+        'TikTok': ['tiktok.com', 'vm.tiktok.com', 'www.tiktok.com', 'm.tiktok.com']
       };
       
       const platformDomains = domainCheck[platform] || [];
