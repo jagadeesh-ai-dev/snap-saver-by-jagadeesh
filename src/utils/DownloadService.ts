@@ -13,6 +13,8 @@ export interface VideoData {
   duration?: string;
   quality?: string;
   author?: string;
+  isAudioOnly?: boolean;
+  isVideo?: boolean;
 }
 
 interface ApiErrorResponse {
@@ -37,7 +39,7 @@ export class DownloadService {
     console.log(`Requesting download URL for: ${url} from platform: ${platform}`);
     
     try {
-      const { data, error, status } = await supabase.functions.invoke('video-downloader', {
+      const { data, error } = await supabase.functions.invoke('video-downloader', {
         body: { url, platform },
       });
       
@@ -47,13 +49,13 @@ export class DownloadService {
       }
       
       // Handle API-specific error responses
-      if ('error' in data) {
+      if (data && 'error' in data) {
         const apiError = data as ApiErrorResponse;
         
         if (apiError.error === "API subscription required") {
           // Specific handling for subscription issues
           toast.error("API subscription required", {
-            description: "The selected API requires a subscription.",
+            description: `The ${platform} video downloader requires a subscription to RapidAPI.`,
             action: {
               label: "Subscribe",
               onClick: () => window.open(apiError.subscriptionUrl, "_blank"),
@@ -92,21 +94,29 @@ export class DownloadService {
    */
   static triggerDownload(videoData: VideoData): void {
     try {
-      const { downloadUrl, title, platform } = videoData;
+      const { downloadUrl, title, platform, isAudioOnly } = videoData;
       
       // Create a safe filename based on platform and video title
       const safeTitle = this.getSafeFilename(title || `${platform.toLowerCase()}-video`);
       const timestamp = new Date().toISOString().slice(0, 10);
       const filename = `${platform}-${safeTitle}-${timestamp}`;
       
-      // Check if the URL is a direct file (ends with a video extension)
-      const isDirectFile = /\.(mp4|mov|avi|wmv|flv|mkv|webm|mp3)$/i.test(downloadUrl);
+      // Determine file extension based on URL or isAudioOnly flag
+      let fileExtension = '.mp4'; // Default to MP4
+      if (isAudioOnly || downloadUrl.includes('.mp3')) {
+        fileExtension = '.mp3';
+      } else if (downloadUrl.match(/\.(mov|avi|wmv|flv|mkv|webm)$/i)) {
+        fileExtension = downloadUrl.match(/\.(mov|avi|wmv|flv|mkv|webm)$/i)![0];
+      }
+      
+      // Check if the URL is a direct file (ends with a video/audio extension)
+      const isDirectFile = /\.(mp4|mp3|mov|avi|wmv|flv|mkv|webm)$/i.test(downloadUrl);
       
       if (isDirectFile) {
-        // For direct video file URLs
+        // For direct video/audio file URLs
         const a = document.createElement('a');
         a.href = downloadUrl;
-        a.download = `${filename}${downloadUrl.endsWith('mp3') ? '.mp3' : '.mp4'}`;
+        a.download = `${filename}${fileExtension}`;
         a.setAttribute('target', '_blank');
         document.body.appendChild(a);
         a.click();
@@ -116,7 +126,7 @@ export class DownloadService {
         window.open(downloadUrl, "_blank");
       }
       
-      console.log(`Download triggered for URL: ${downloadUrl}, filename: ${filename}${downloadUrl.endsWith('mp3') ? '.mp3' : '.mp4'}`);
+      console.log(`Download triggered for URL: ${downloadUrl}, filename: ${filename}${fileExtension}`);
     } catch (error) {
       console.error("Error triggering download:", error);
       // Fallback to opening in a new tab if download fails

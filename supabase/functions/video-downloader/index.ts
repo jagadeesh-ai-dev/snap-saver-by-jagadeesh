@@ -32,7 +32,7 @@ Deno.serve(async (req) => {
       throw new Error("RapidAPI key not configured");
     }
 
-    // YouTube-specific API (no subscription required)
+    // YouTube-specific video download API (separate from MP3)
     if (platform === 'YouTube') {
       try {
         const videoId = extractYoutubeId(url);
@@ -40,6 +40,53 @@ Deno.serve(async (req) => {
           throw new Error("Could not extract YouTube video ID");
         }
 
+        // Try to get video download first using the main Auto Download API
+        const autoDownloadResponse = await fetch('https://auto-download-all-in-one-big.p.rapidapi.com/v1/social/autolink', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-rapidapi-host': 'auto-download-all-in-one-big.p.rapidapi.com',
+            'x-rapidapi-key': RAPID_API_KEY,
+          },
+          body: JSON.stringify({ url }),
+        });
+
+        const autoDownloadData = await autoDownloadResponse.json();
+        console.log("Auto Download API Response for YouTube:", autoDownloadData);
+
+        // If auto download API is successful and has video links, return the video data
+        if (autoDownloadResponse.ok && autoDownloadData.links && autoDownloadData.links.length > 0) {
+          // Find the best quality video link
+          const videoLinks = autoDownloadData.links.filter(link => 
+            typeof link.type === 'string' && link.type.includes('video')
+          );
+          
+          if (videoLinks.length > 0) {
+            // Sort by quality (if available) and pick the highest
+            const bestVideoLink = videoLinks.sort((a, b) => 
+              (b.quality?.toString() || '').localeCompare(a.quality?.toString() || '')
+            )[0];
+            
+            return new Response(
+              JSON.stringify({
+                title: autoDownloadData.title || 'YouTube Video',
+                downloadUrl: bestVideoLink.link,
+                platform: 'YouTube',
+                videoId: videoId,
+                message: 'Download started! Video will be processed as MP4.',
+                author: autoDownloadData.author || 'YouTube Creator',
+                quality: bestVideoLink.quality || 'HD',
+                fileSize: bestVideoLink.size || 'Unknown size',
+                thumbnail: autoDownloadData.thumbnail || '',
+                isVideo: true
+              }),
+              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+        }
+
+        // Fallback to MP3 if video download didn't work
+        console.log("Falling back to YouTube MP3 API");
         const response = await fetch(`https://youtube-mp36.p.rapidapi.com/dl?id=${videoId}`, {
           method: 'GET',
           headers: {
@@ -49,7 +96,7 @@ Deno.serve(async (req) => {
         });
 
         const data = await response.json();
-        console.log("YouTube API Response:", data);
+        console.log("YouTube MP3 API Response:", data);
 
         if (data.status === "ok" && data.link) {
           return new Response(
@@ -58,10 +105,11 @@ Deno.serve(async (req) => {
               downloadUrl: data.link,
               platform: 'YouTube',
               videoId: videoId,
-              message: 'Download started! Video will be processed as MP3.',
+              message: 'Download started! Only audio (MP3) version is available for this video.',
               author: 'YouTube Creator',
               quality: 'MP3 Audio',
-              fileSize: data.filesize ? `${Math.round(data.filesize / 1024)} KB` : 'Unknown size'
+              fileSize: data.filesize ? `${Math.round(data.filesize / 1024)} KB` : 'Unknown size',
+              isAudioOnly: true
             }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
@@ -87,7 +135,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Call the unified Auto Download API
+    // Call the unified Auto Download API for non-YouTube platforms
     const response = await fetch('https://auto-download-all-in-one-big.p.rapidapi.com/v1/social/autolink', {
       method: 'POST',
       headers: {
@@ -107,32 +155,53 @@ Deno.serve(async (req) => {
         return new Response(
           JSON.stringify({ 
             error: "API subscription required", 
-            message: "The RapidAPI key is not subscribed to this API or rate limit exceeded. Please subscribe to the Auto Download All-in-One API on RapidAPI or use a different key.",
+            message: `The RapidAPI key is not subscribed to the Auto Download All-in-One API for ${platform}. Please subscribe to the API on RapidAPI or use a different key.`,
             apiName: "Auto Download All-in-One",
-            subscriptionUrl: "https://rapidapi.com/kpverse/api/auto-download-all-in-one-big/pricing"
+            subscriptionUrl: "https://rapidapi.com/kpverse/api/auto-download-all-in-one-big/pricing",
+            platform
           }),
           { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-      throw new Error(data.message || 'Failed to process video URL');
+      throw new Error(data.message || `Failed to process ${platform} video URL`);
+    }
+
+    // Find the best video link for non-YouTube platforms
+    let bestLink = null;
+    if (data.links && data.links.length > 0) {
+      // First try to find a video link
+      const videoLinks = data.links.filter(link => 
+        typeof link.type === 'string' && link.type.includes('video')
+      );
+      
+      if (videoLinks.length > 0) {
+        // Sort by quality (if available) and pick the highest
+        bestLink = videoLinks.sort((a, b) => 
+          (b.quality?.toString() || '').localeCompare(a.quality?.toString() || '')
+        )[0];
+      } else {
+        // If no video links, just take the first link
+        bestLink = data.links[0];
+      }
     }
 
     // Transform API response to our VideoData format
     const videoData = {
       title: data.title || `${platform} Video`,
-      downloadUrl: data.links?.[0]?.link || data.url || '',
+      downloadUrl: bestLink?.link || data.url || '',
       platform,
       videoId: data.id || url,
       thumbnail: data.thumbnail || '',
       message: 'Download started! Video will save to your Downloads folder.',
-      fileSize: data.size || 'Unknown size',
+      fileSize: bestLink?.size || data.size || 'Unknown size',
       duration: data.duration || 'Unknown duration',
-      quality: data.quality || 'HD',
-      author: data.author || `${platform} Creator`
+      quality: bestLink?.quality || data.quality || 'HD',
+      author: data.author || `${platform} Creator`,
+      isVideo: bestLink ? (bestLink.type?.includes('video') || true) : true
     };
 
     if (!videoData.downloadUrl) {
-      throw new Error('No download URL found in the response');
+      throw new Error(`No download URL found in the response for ${platform}`);
     }
 
     // Return the processed video data

@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
-import { Download, AlertCircle, Clock } from 'lucide-react';
+import { Download, AlertCircle, Clock, Music } from 'lucide-react';
 import { toast } from 'sonner';
 import { Progress } from './ui/progress';
 import AdModal from './AdModal';
@@ -43,6 +43,7 @@ const DownloadForm = ({ platform, platformColor }: DownloadFormProps) => {
     setDownloadProgress(0);
     setError(null);
     setIsProcessing(false);
+    setVideoData(null);
     
     // Start progress animation
     const progressInterval = setInterval(() => {
@@ -84,22 +85,21 @@ const DownloadForm = ({ platform, platformColor }: DownloadFormProps) => {
         });
         
         setError("YouTube is still processing this video. Please try again in a few minutes.");
+      } else if (error instanceof Error && error.message.includes("API subscription required")) {
+        toast.error("API Subscription Required", {
+          description: `To download videos from ${platform}, a RapidAPI subscription is needed for the Auto Download All-in-One API.`,
+          action: {
+            label: "Subscribe",
+            onClick: () => window.open("https://rapidapi.com/kpverse/api/auto-download-all-in-one-big/pricing", "_blank"),
+          },
+          duration: 10000,
+        });
+        
+        setError(`The RapidAPI key is not subscribed to the Auto Download All-in-One API for ${platform}. Please subscribe to use this feature.`);
+        setShowProgress(false);
       } else {
         setError(error instanceof Error ? error.message : 'Unknown error');
-        
-        if (error instanceof Error && error.message.includes("API subscription required")) {
-          toast.error("API Subscription Required", {
-            description: "The developer needs to subscribe to the RapidAPI service for this feature to work.",
-            action: {
-              label: "Learn More",
-              onClick: () => window.open("https://rapidapi.com/kpverse/api/auto-download-all-in-one-big/pricing", "_blank"),
-            },
-            duration: 10000,
-          });
-        } else {
-          toast.error(`Failed to download: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        }
-        
+        toast.error(`Failed to download: ${error instanceof Error ? error.message : 'Unknown error'}`);
         setShowProgress(false);
       }
     } finally {
@@ -129,8 +129,13 @@ const DownloadForm = ({ platform, platformColor }: DownloadFormProps) => {
     if (videoData) {
       DownloadService.triggerDownload(videoData);
       
-      // Show success message with any additional info
-      toast.success(videoData.message || `Download started for your ${platform} video!`);
+      // Show success message with additional info about audio or video
+      let message = videoData.message || `Download started for your ${platform} video!`;
+      if (videoData.isAudioOnly) {
+        message = `Audio download started (MP3). Only audio is available for this video.`;
+      }
+      
+      toast.success(message);
       
       // Reset form
       setUrl('');
@@ -172,7 +177,13 @@ const DownloadForm = ({ platform, platformColor }: DownloadFormProps) => {
         {showProgress && (
           <div className="space-y-2">
             <div className="flex justify-between text-sm text-muted-foreground">
-              <span>{videoData ? 'Download ready' : (isProcessing ? 'Video processing...' : 'Processing...')}</span>
+              <span>
+                {videoData 
+                  ? videoData.isAudioOnly 
+                    ? 'Audio download ready (MP3)' 
+                    : 'Video download ready'
+                  : (isProcessing ? 'Video processing...' : 'Processing...')}
+              </span>
               <span>{isProcessing ? 'Waiting for YouTube' : `${Math.round(downloadProgress)}%`}</span>
             </div>
             <Progress 
@@ -196,6 +207,16 @@ const DownloadForm = ({ platform, platformColor }: DownloadFormProps) => {
               >
                 Try Again
               </Button>
+            </div>
+          </div>
+        )}
+        
+        {videoData && videoData.isAudioOnly && (
+          <div className="p-4 border border-blue-200 bg-blue-50 rounded-md flex items-start gap-3 text-blue-800">
+            <Music className="h-5 w-5 mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="font-medium">Audio-only download available</p>
+              <p className="text-sm mt-1">Only the audio (MP3) version of this content is available for download. Video format is not available.</p>
             </div>
           </div>
         )}
