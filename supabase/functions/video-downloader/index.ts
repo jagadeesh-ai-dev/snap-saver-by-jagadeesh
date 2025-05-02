@@ -26,12 +26,12 @@ Deno.serve(async (req) => {
       );
     }
 
-    const RAPID_API_KEY = Deno.env.get("RAPID_API_KEY");
+    // Use the new API key directly (in a real production app, we would use the Supabase secret system)
+    const RAPID_API_KEY = "565479a35cmsh198b1c697bc8727p14fb1ejsn1727bfaeb1f5";
     if (!RAPID_API_KEY) {
       throw new Error("RapidAPI key not configured");
     }
 
-    // Using a more reliable free API as fallback
     // YouTube-specific API (no subscription required)
     if (platform === 'YouTube') {
       try {
