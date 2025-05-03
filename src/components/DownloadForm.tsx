@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
-import { Download, AlertCircle, Clock, Music } from 'lucide-react';
+import { Download, AlertCircle, Clock, Music, Video } from 'lucide-react';
 import { toast } from 'sonner';
 import { Progress } from './ui/progress';
 import AdModal from './AdModal';
@@ -133,6 +133,8 @@ const DownloadForm = ({ platform, platformColor }: DownloadFormProps) => {
       let message = videoData.message || `Download started for your ${platform} video!`;
       if (videoData.isAudioOnly) {
         message = `Audio download started (MP3). Only audio is available for this video.`;
+      } else if (videoData.isVideo) {
+        message = `Video download started. ${videoData.quality || 'HD'} quality.`;
       }
       
       toast.success(message);
@@ -217,6 +219,16 @@ const DownloadForm = ({ platform, platformColor }: DownloadFormProps) => {
             <div>
               <p className="font-medium">Audio-only download available</p>
               <p className="text-sm mt-1">Only the audio (MP3) version of this content is available for download. Video format is not available.</p>
+            </div>
+          </div>
+        )}
+        
+        {videoData && videoData.isVideo && (
+          <div className="p-4 border border-green-200 bg-green-50 rounded-md flex items-start gap-3 text-green-800">
+            <Video className="h-5 w-5 mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="font-medium">Video download available</p>
+              <p className="text-sm mt-1">Video will be downloaded in {videoData.quality || 'high'} quality.</p>
             </div>
           </div>
         )}

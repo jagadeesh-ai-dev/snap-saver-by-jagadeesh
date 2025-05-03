@@ -45,7 +45,7 @@ export class DownloadService {
       
       if (error) {
         console.error("Supabase function error:", error);
-        throw new Error(`Failed to get download URL: ${error.message}`);
+        throw new Error(`Failed to get download URL: ${error.message || "Unknown error"}`);
       }
       
       // Handle API-specific error responses
@@ -73,7 +73,7 @@ export class DownloadService {
           throw new Error(apiError.message || "Video is still processing");
         }
         
-        throw new Error(apiError.message || apiError.error);
+        throw new Error(apiError.message || apiError.error || "Download failed");
       }
       
       if (!data || !data.downloadUrl) {
@@ -103,26 +103,44 @@ export class DownloadService {
       
       // Determine file extension based on URL or isAudioOnly flag
       let fileExtension = '.mp4'; // Default to MP4
-      if (isAudioOnly || downloadUrl.includes('.mp3')) {
+      
+      if (isAudioOnly) {
         fileExtension = '.mp3';
-      } else if (downloadUrl.match(/\.(mov|avi|wmv|flv|mkv|webm)$/i)) {
-        fileExtension = downloadUrl.match(/\.(mov|avi|wmv|flv|mkv|webm)$/i)![0];
+      } else {
+        // Check for specific extensions in the URL
+        const urlExtensionMatch = downloadUrl.match(/\.([a-zA-Z0-9]{3,4})(?:[\?#]|$)/);
+        if (urlExtensionMatch) {
+          const ext = urlExtensionMatch[1].toLowerCase();
+          // Verify it's a valid video/audio extension
+          if (['mp4', 'mp3', 'mov', 'avi', 'wmv', 'flv', 'mkv', 'webm', 'm4a'].includes(ext)) {
+            fileExtension = `.${ext}`;
+          }
+        }
       }
       
-      // Check if the URL is a direct file (ends with a video/audio extension)
-      const isDirectFile = /\.(mp4|mp3|mov|avi|wmv|flv|mkv|webm)$/i.test(downloadUrl);
+      // Check if the URL is a direct file or has video/audio extensions
+      const isDirectFile = /\.(mp4|mp3|mov|avi|wmv|flv|mkv|webm|m4a)(?:[\?#]|$)/i.test(downloadUrl);
       
       if (isDirectFile) {
         // For direct video/audio file URLs
+        console.log(`Downloading direct file: ${downloadUrl} as ${filename}${fileExtension}`);
+        
+        // Create an invisible anchor element to trigger download
         const a = document.createElement('a');
         a.href = downloadUrl;
         a.download = `${filename}${fileExtension}`;
         a.setAttribute('target', '_blank');
+        a.style.display = 'none';
         document.body.appendChild(a);
         a.click();
-        document.body.removeChild(a);
+        
+        // Clean up after a short delay
+        setTimeout(() => {
+          document.body.removeChild(a);
+        }, 100);
       } else {
         // For URLs that might need to be opened in a new tab (e.g. downloadable page)
+        console.log(`Opening download URL in new tab: ${downloadUrl}`);
         window.open(downloadUrl, "_blank");
       }
       
@@ -130,6 +148,9 @@ export class DownloadService {
     } catch (error) {
       console.error("Error triggering download:", error);
       // Fallback to opening in a new tab if download fails
+      toast.error("Download error", { 
+        description: "Could not download directly. Opening in new tab instead." 
+      });
       window.open(videoData.downloadUrl, "_blank");
     }
   }
