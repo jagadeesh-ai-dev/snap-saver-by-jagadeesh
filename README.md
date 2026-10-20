@@ -1,73 +1,59 @@
-# Welcome to your Lovable project
+# SnapSaver
 
-## Project info
+A **React and TypeScript web interface concept** for social-video download workflows. The app organizes platform-specific pages for users to enter a video URL and follow a download flow.
 
-**URL**: https://lovable.dev/projects/760deacb-d03a-41b8-830b-fba9353c7195
+## Project Areas
 
-## How can I edit this code?
+- Platform-specific pages for Facebook, Instagram, X/Twitter, YouTube, Pinterest, and TikTok
+- URL-entry and download-oriented interface
+- Shared layout and reusable UI components
+- Responsive React application structure
 
-There are several ways of editing your application.
+> The repository UI describes video-download workflows. Actual downloading depends on valid service integrations, platform restrictions, and applicable terms. Do not assume every provider flow works without testing it.
 
-**Use Lovable**
+## Tech Stack
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/760deacb-d03a-41b8-830b-fba9353c7195) and start prompting.
+- React
+- TypeScript
+- Vite
+- Tailwind CSS
+- shadcn/ui
+- React Router
+- TanStack Query
 
-Changes made via Lovable will be committed automatically to this repo.
+## Run Locally
 
-**Use your preferred IDE**
+### Prerequisites
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+Install a current Node.js LTS release and npm.
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+```bash
+git clone https://github.com/jagadeesh-ai-dev/snap-saver-by-jagadeesh.git
+cd snap-saver-by-jagadeesh
+npm install
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+Use the local URL printed by Vite to open the app.
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## Build and Lint
 
-**Use GitHub Codespaces**
+```bash
+npm run build
+npm run lint
+```
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## Project Workspace
 
-## What technologies are used for this project?
+The project workspace is available at [Lovable](https://lovable.dev/projects/760deacb-d03a-41b8-830b-fba9353c7195).
 
-This project is built with:
+## Next Improvements
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+- Verify each provider flow end to end
+- Document any backend or external service configuration
+- Add screenshots and a verified demo URL
+- Ensure use respects platform terms, copyright, and user privacy
 
-## How can I deploy this project?
+---
 
-Simply open [Lovable](https://lovable.dev/projects/760deacb-d03a-41b8-830b-fba9353c7195) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+Built by [Jagadeesh](https://github.com/jagadeesh-ai-dev).
